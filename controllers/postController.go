@@ -1,46 +1,64 @@
 package controllers
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"learnApi/models"
+	"learnApi/utils"
 	"learnApi/validation"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 )
 
-func FindPosts(ctx *gin.Context) {
+func FindPosts(w http.ResponseWriter, r *http.Request) {
 	var posts []models.Post
 	models.DB.Find(&posts)
 
-	ctx.JSON(200, gin.H{
+	response := map[string]interface{}{
 		"success": true,
 		"message": "List post success",
 		"posts":   posts,
-	})
+	}
+
+	w.Header().Set("content-type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }
 
 func GetErrorMsg(fe validator.FieldError) string {
 	switch fe.Tag() {
 	case "required":
 		return "this field is required"
+	case "min":
+		return "minimum length is 3"
+	case "max":
+		return "maximal length is 100"
 	}
+
+	fmt.Println(fe.Tag())
 	return "Unknown Error"
 
 }
 
-func StorePost(ctx *gin.Context) {
+func StorePost(w http.ResponseWriter, r *http.Request) {
 	var input validation.ValidatePostInput
 
-	if err := ctx.ShouldBindJSON(&input); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		http.Error(w, "Invalid input", http.StatusBadRequest)
+		return
+	}
+
+	validate := validator.New()
+	if err := validate.Struct(input); err != nil {
 		var ve validator.ValidationErrors
 		if errors.As(err, &ve) {
 			out := make([]validation.ErrorMsg, len(ve))
 			for i, fe := range ve {
 				out[i] = validation.ErrorMsg{Field: fe.Field(), Message: GetErrorMsg(fe)}
 			}
-			ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": out})
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]interface{}{"error": out})
 		}
 		return
 	}
@@ -52,68 +70,76 @@ func StorePost(ctx *gin.Context) {
 
 	models.DB.Create(&post)
 
-	ctx.JSON(200, gin.H{
-		"success": true,
-		"message": "Post Created",
+	w.Header().Set("content-type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":  true,
+		"message": "post created!",
 		"data":    post,
 	})
 
 }
 
-func FindPostById(ctx *gin.Context) {
-	var post models.Post
-	if err := models.DB.Where("id = ?", ctx.Param("id")).First(&post).Error; err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Data Not Found"})
+func FindPostById(w http.ResponseWriter, r *http.Request) {
+	post,err := utils.FindDataById(w, r)
+	if err != nil {
 		return
 	}
-
-	ctx.JSON(200, gin.H{
-		"success": true,
-		"message": "Data found",
-		"data":    post,
-	})
+	w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{} {
+			"success": true,
+			"message": "Data found",
+			"data":    post,
+		})
 }
 
-func UpdatePost(ctx *gin.Context) {
-	var post models.Post
-	if err := models.DB.Where("id = ?", ctx.Param("id")).First(&post).Error; err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Record not found!"})
+func UpdatePost(w http.ResponseWriter, r *http.Request) {
+	post, err := utils.FindDataById(w,r)
+	if err != nil {
 		return
 	}
-
 	var input validation.ValidatePostInput
-	if err := ctx.ShouldBindJSON(&input); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		http.Error(w, "Invalid input", http.StatusBadRequest)
+		return
+	}
+
+	validate := validator.New()
+	if err := validate.Struct(input); err != nil {
 		var ve validator.ValidationErrors
 		if errors.As(err, &ve) {
 			out := make([]validation.ErrorMsg, len(ve))
 			for i, fe := range ve {
 				out[i] = validation.ErrorMsg{Field: fe.Field(), Message: GetErrorMsg(fe)}
 			}
-			ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"errors": out})
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]interface{}{"error": out})
 		}
 		return
 	}
 
 	models.DB.Model(&post).Updates(input)
 
-	ctx.JSON(200, gin.H{
+	w.Header().Set("content-type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"message": "Post Updated Successfully",
 		"data":    post,
 	})
 }
 
-func DeletePost(ctx *gin.Context) {
-	var post models.Post
-	if err := models.DB.Where("id = ?", ctx.Param("id")).First(&post).Error; err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Record not found!"})
+func DeletePost(w http.ResponseWriter, r *http.Request) {
+	post, err := utils.FindDataById(w,r)
+	if err != nil {
 		return
 	}
-
-	//delete post
 	models.DB.Delete(&post)
 
-	ctx.JSON(200, gin.H{
+	w.Header().Set("content-type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"message": "Post Deleted Successfully",
 	})

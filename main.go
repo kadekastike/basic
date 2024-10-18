@@ -1,31 +1,32 @@
 package main
 
 import (
+	"encoding/json"
 	"learnApi/controllers"
 	"learnApi/middleware"
 	"learnApi/models"
-
-	"github.com/gin-gonic/gin"
+	"net/http"
 )
 
 func main() {
-	router := gin.Default()
+	router := http.NewServeMux()
 
 	models.ConnectToDatabase()
 
-	router.Use(middleware.RequestResponseLogger())
+	routerMiddleware := middleware.RequestResponseLogger(router)
 
-	router.GET("/", func(ctx *gin.Context) {
-		ctx.JSON(200, gin.H{
-			"message": "Hello World",
+	router.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("content-type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": "hello world",
 		})
 	})
 
-	router.GET("/api/posts", controllers.FindPosts)
-	router.POST("/api/post", controllers.StorePost)
-	router.GET("/api/post/:id", controllers.FindPostById)
-	router.PUT("/api/post/:id", controllers.UpdatePost)
-	router.DELETE("/api/post/:id", controllers.DeletePost)
+	router.HandleFunc("GET /api/posts", controllers.FindPosts)
+	router.HandleFunc("POST /api/post", controllers.StorePost)
+	router.HandleFunc("GET /api/post/", controllers.FindPostById)
+	router.HandleFunc("PUT /api/post/{id}", controllers.UpdatePost)
+	router.HandleFunc("DELETE /api/post/{id}", controllers.DeletePost)
 
-	router.Run(":8000")
+	http.ListenAndServe(":8000", routerMiddleware)
 }
