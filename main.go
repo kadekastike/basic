@@ -24,7 +24,7 @@ func main() {
 
 	router.HandleFunc("GET /api/posts", controllers.FindPosts)
 	router.HandleFunc("POST /api/post", controllers.StorePost)
-	router.HandleFunc("GET /api/post/", controllers.FindPostById)
+	router.HandleFunc("GET /api/post/{id}", controllers.FindPostById)
 	router.HandleFunc("PUT /api/post/{id}", controllers.UpdatePost)
 	router.HandleFunc("DELETE /api/post/{id}", controllers.DeletePost)
 
